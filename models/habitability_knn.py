@@ -200,9 +200,9 @@ class HabitabilityKNN:
 
         return {
             "accuracy"        : round(acc, 4),
-            "precision"       : round(precision, 4),
-            "recall"          : round(recall, 4),
-            "f1_score"        : round(f1, 4),
+            "precision"       : np.round(precision, 4),
+            "recall"          : np.round(recall, 4),
+            "f1_score"        : np.round(f1, 4),
             "confusion_matrix": cm.tolist(),
             "report"          : report,
         }
@@ -217,13 +217,15 @@ class HabitabilityKNN:
         Tests every K in k_range using cross-validation.
         Logs accuracy for each K, returns the best K found.
 
-        Tip: Run this in knn_experiments.ipynb, then update config.py
         """
         log_section(logger, "Habitability KNN — Finding Best K")
         self._validate(df)
 
-        X = df[FEATURE_COLS].values
-        y = df[TARGET_COL].values
+        X_raw = df[FEATURE_COLS].values
+        y_raw = df[TARGET_COL].values
+
+        X = cast(np.ndarray, X_raw)
+        y = cast(np.ndarray, y_raw)
 
         best_k      = self._k
         best_score  = 0.0
@@ -264,6 +266,9 @@ class HabitabilityKNN:
         k = n_neighbours or self._k
         X = df[FEATURE_COLS].values
 
+        assert self._model is not None, "Model must be trained before finding neighbours."
+        X = cast(np.ndarray, X)
+
         distances, indices = self._model.kneighbors(X, n_neighbors=k)
         logger.info(f"Neighbours found for {len(df)} planets (K={k})")
         return distances, indices
@@ -277,15 +282,21 @@ class HabitabilityKNN:
         self._check_trained()
         self._validate(df)
 
-        X     = df[FEATURE_COLS].values
-        y     = df[TARGET_COL].values
-        base  = accuracy_score(y, self._model.predict(X))
+        assert self._model is not None, "Model must be trained before calculating feature importance."
+
+        X_raw     = df[FEATURE_COLS].values
+        y_raw     = df[TARGET_COL].values
+
+        X = cast(np.ndarray, X_raw)
+        y = cast(np.ndarray, y_raw)
+
+        base  = float(accuracy_score(y, self._model.predict(X)))
 
         importance = {}
         for i, col in enumerate(FEATURE_COLS):
             X_shuffled        = X.copy()
             X_shuffled[:, i]  = np.random.permutation(X_shuffled[:, i])
-            shuffled_acc      = accuracy_score(y, self._model.predict(X_shuffled))
+            shuffled_acc      = float(accuracy_score(y, self._model.predict(X_shuffled)))
             drop              = base - shuffled_acc
             importance[col]   = round(drop, 4)
             logger.info(f"  {col:<30} → accuracy drop: {drop * 100:.2f}%")
